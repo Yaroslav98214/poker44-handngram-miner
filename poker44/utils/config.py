@@ -164,8 +164,32 @@ def add_miner_args(cls, parser: argparse.ArgumentParser) -> None:
 
 
 
+def ensure_neuron_config(config: "bt.Config") -> None:
+    """Populate the neuron namespace when flat CLI keys are used (bittensor 10.x)."""
+    defaults = {
+        "name": "miner",
+        "device": "cpu",
+        "epoch_length": 50,
+        "disable_set_weights": False,
+        "wait_for_inclusion": True,
+        "wait_for_finalization": True,
+        "moving_average_alpha": 0.05,
+        "num_concurrent_forwards": 1,
+        "timeout": 60.0,
+        "axon_off": False,
+    }
+    if config.neuron is None:
+        config.neuron = bt.Config()
+    for key, default in defaults.items():
+        flat_key = f"neuron.{key}"
+        value = getattr(config.neuron, key, None)
+        if value is None:
+            setattr(config.neuron, key, getattr(config, flat_key, default))
+
+
 def check_config(cls, config: "bt.Config"):
     r"""Checks/validates the config namespace object."""
+    ensure_neuron_config(config)
     full_path = os.path.expanduser(
         "{}/{}/{}/netuid{}/{}".format(
             config.logging.logging_dir,  # TODO: change from ~/.bittensor/miners to ~/.bittensor/neurons

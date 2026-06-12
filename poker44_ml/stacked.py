@@ -96,6 +96,16 @@ class StackedEnsemble:
             return np.zeros((len(chunks), 0), dtype=float)
         cols: List[np.ndarray] = []
         for model in self.chunk_models:
+            if hasattr(model, "device"):
+                device = str(getattr(model, "device", ""))
+                if device.startswith("cuda"):
+                    try:
+                        import torch  # type: ignore
+
+                        if not torch.cuda.is_available():
+                            setattr(model, "device", "cpu")
+                    except Exception:
+                        setattr(model, "device", "cpu")
             if hasattr(model, "predict_proba"):
                 proba = np.asarray(model.predict_proba(chunks))
                 col = proba[:, 1] if proba.ndim == 2 else proba

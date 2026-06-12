@@ -7,12 +7,18 @@ WALLET_NAME="${WALLET_NAME:-poker44-miner-ck}"
 HOTKEY="${HOTKEY:-poker44-miner-hk}"
 NETWORK="${NETWORK:-finney}"
 MINER_SCRIPT="${MINER_SCRIPT:-./neurons/miner.py}"
+PYTHON_BIN="${PYTHON_BIN:-./miner_env/bin/python}"
 PM2_NAME="${PM2_NAME:-poker44_miner}"  ##  name of Miner, as you wish
 AXON_PORT="${AXON_PORT:-8091}"
 ALLOWED_VALIDATOR_HOTKEYS="${ALLOWED_VALIDATOR_HOTKEYS:-}"
 
 if [ ! -f "$MINER_SCRIPT" ]; then
     echo "Error: Miner script not found at $MINER_SCRIPT"
+    exit 1
+fi
+
+if [ ! -x "$PYTHON_BIN" ]; then
+    echo "Error: Python interpreter not found at $PYTHON_BIN"
     exit 1
 fi
 
@@ -41,8 +47,9 @@ else
   MINER_ARGS+=(--blacklist.force_validator_permit)
 fi
 
-pm2 start $MINER_SCRIPT \
+pm2 start "$PYTHON_BIN" \
   --name $PM2_NAME -- \
+  "$MINER_SCRIPT" \
   "${MINER_ARGS[@]}"
 
 pm2 save

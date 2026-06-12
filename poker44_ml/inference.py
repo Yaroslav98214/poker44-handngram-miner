@@ -48,6 +48,7 @@ class Poker44Model:
         self.feature_names = list(artifact.get("feature_names") or [])
         self.metadata = dict(artifact.get("metadata") or {})
         self.calibrator = artifact.get("calibrator")
+        self.score_invert = bool(self.metadata.get("score_invert", False))
         self.score_logit_bias = float(self.metadata.get("score_logit_bias", 0.0) or 0.0)
         self.score_logit_temperature = max(
             float(self.metadata.get("score_logit_temperature", 1.0) or 1.0),
@@ -97,6 +98,18 @@ class Poker44Model:
     ) -> list[float]:
         per_model: list[list[float]] = []
         for model in self.models:
+            # Some published artifacts are trained with sequence wrappers pinned to
+            # CUDA. Force CPU fallback at inference when CUDA is unavailable.
+            if hasattr(model, "device"):
+                device = str(getattr(model, "device", ""))
+                if device.startswith("cuda"):
+                    try:
+                        import torch  # type: ignore
+
+                        if not torch.cuda.is_available():
+                            setattr(model, "device", "cpu")
+                    except Exception:
+                        setattr(model, "device", "cpu")
             if (
                 chunks is not None
                 and hasattr(model, "predict_chunk_scores")
@@ -166,6 +179,8 @@ class Poker44Model:
     def _apply_score_logit(self, scores: list[float]) -> list[float]:
         if not scores:
             return []
+        if self.score_invert:
+            scores = [self._clamp01(1.0 - value) for value in scores]
         if abs(self.score_logit_bias) < 1e-12 and abs(self.score_logit_temperature - 1.0) < 1e-12:
             return [self._clamp01(value) for value in scores]
         output: list[float] = []
