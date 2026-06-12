@@ -121,7 +121,7 @@ class HandNgramEnsemble:
         chunks: Sequence[Sequence[Dict[str, Any]]],
         feature_rows: Any = None,
     ) -> List[float]:
-        scores: List[float] = []
+        raws: List[float] = []
         for chunk in chunks:
             probs = self._hand_probs([h for h in chunk if isinstance(h, dict)])
             if probs.size == 0:
@@ -130,9 +130,23 @@ class HandNgramEnsemble:
                 raw = float(np.median(probs))
             else:
                 raw = float(np.mean(probs))
-            if self.stretch_center is not None and self.stretch_scale:
-                z = (raw - float(self.stretch_center)) / float(self.stretch_scale)
-                raw = float(1.0 / (1.0 + np.exp(-np.clip(z, -40.0, 40.0))))
-            mapped = self.score_low + (self.score_high - self.score_low) * max(0.0, min(1.0, raw))
-            scores.append(mapped)
-        return scores
+            raws.append(raw)
+        raw_arr = np.asarray(raws, dtype=np.float64)
+        # Batch-relative mapping: the raw chunk means concentrate in a narrow,
+        # distribution-dependent band, so a fixed global transform saturates on
+        # live traffic. Ranking within the batch is what drives AP, and a
+        # rank-based spread is invariant to that shift. A small min-max blend
+        # keeps raw magnitude info as a tie-breaker.
+        n = raw_arr.size
+        if n == 0:
+            return []
+        if n == 1 or float(raw_arr.max() - raw_arr.min()) < 1e-12:
+            mid = 0.5 * (self.score_low + self.score_high)
+            return [float(mid)] * n
+        order = np.argsort(np.argsort(raw_arr, kind="stable"), kind="stable")
+        rank01 = order / float(n - 1)
+        span = raw_arr.max() - raw_arr.min()
+        minmax01 = (raw_arr - raw_arr.min()) / span
+        blended = 0.85 * rank01 + 0.15 * minmax01
+        mapped = self.score_low + (self.score_high - self.score_low) * blended
+        return [float(v) for v in mapped]
