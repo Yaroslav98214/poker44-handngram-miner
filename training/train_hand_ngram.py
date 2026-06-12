@@ -1,0 +1,152 @@
+"""Train the Poker44 hand-level n-gram ensemble (poker44-handngram-supervised).
+
+Trains on the public Poker44 training benchmark (v1.10) fetched from
+https://api.poker44.net/api/v1/benchmark. Each hand becomes a bag-of-ngrams
+document (street/action/size tokens, bigrams, trigrams, positional counts).
+A LightGBM + logistic-regression ensemble scores hands; chunk risk is the
+mean hand probability passed through a monotonic sigmoid stretch and mapped
+into [0.04, 0.49].
+
+Usage:
+    python -m training.train_hand_ngram \
+        --benchmark-path hands_generator/evaluation_datas/training_benchmark_v110_full.txt \
+        --output models/poker44_handngram_v1.joblib
+"""
+
+from __future__ import annotations
+
+import argparse
+import collections
+import json
+import warnings
+
+import joblib
+import lightgbm as lgb
+import numpy as np
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import average_precision_score
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+
+from poker44_ml.hand_ngram import HandNgramEnsemble, hand_ngram_doc
+
+warnings.filterwarnings("ignore")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--benchmark-path", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--min-token-count", type=int, default=40)
+    parser.add_argument("--lgb-weight", type=float, default=0.6)
+    parser.add_argument("--recency-ramp", type=float, default=1.5)
+    args = parser.parse_args()
+
+    data = json.load(open(args.benchmark_path))
+    groups = data["data"]["chunks"]
+
+    hand_docs: list[collections.Counter] = []
+    hand_labels: list[int] = []
+    hand_dates: list[str] = []
+    chunk_lists: list[list] = []
+    chunk_labels: list[int] = []
+    for group in groups:
+        for idx, chunk in enumerate(group["chunks"]):
+            label = int(group["groundTruth"][idx])
+            chunk_lists.append(chunk)
+            chunk_labels.append(label)
+            for hand in chunk:
+                hand_docs.append(hand_ngram_doc(hand))
+                hand_labels.append(label)
+                hand_dates.append(group["sourceDate"])
+
+    y = np.array(hand_labels)
+    dates_arr = np.array(hand_dates)
+    counts = collections.Counter(k for doc in hand_docs for k in doc)
+    vocabulary = {
+        key: i
+        for i, key in enumerate(sorted(k for k, c in counts.items() if c >= args.min_token_count))
+    }
+    x = np.zeros((len(hand_docs), len(vocabulary)), dtype=np.float32)
+    for i, doc in enumerate(hand_docs):
+        for key, value in doc.items():
+            j = vocabulary.get(key)
+            if j is not None:
+                x[i, j] = value
+
+    dates = sorted(set(hand_dates))
+    date_index = {d: i for i, d in enumerate(dates)}
+    weights = np.array(
+        [1.0 + args.recency_ramp * date_index[d] / max(len(dates) - 1, 1) for d in dates_arr]
+    )
+
+    lgb_model = lgb.LGBMClassifier(
+        n_estimators=400,
+        learning_rate=0.05,
+        num_leaves=63,
+        min_child_samples=30,
+        subsample=0.8,
+        colsample_bytree=0.7,
+        verbose=-1,
+        n_jobs=6,
+    )
+    lgb_model.fit(x, y, sample_weight=weights)
+    lr_model = make_pipeline(
+        StandardScaler(with_mean=False), LogisticRegression(C=0.3, max_iter=3000)
+    )
+    lr_model.fit(x, y, logisticregression__sample_weight=weights)
+
+    probe = HandNgramEnsemble(
+        vocabulary, lgb_model, lr_model, lgb_weight=args.lgb_weight, score_low=0.0, score_high=1.0
+    )
+    raw_means = []
+    for chunk in chunk_lists:
+        probs = probe._hand_probs([h for h in chunk if isinstance(h, dict)])
+        raw_means.append(float(np.mean(probs)) if probs.size else 0.0)
+    raw_means_arr = np.array(raw_means)
+    center = float(np.median(raw_means_arr))
+    scale = float(max(np.std(raw_means_arr), 1e-6))
+
+    ensemble = HandNgramEnsemble(
+        vocabulary,
+        lgb_model,
+        lr_model,
+        lgb_weight=args.lgb_weight,
+        aggregation="mean",
+        score_low=0.04,
+        score_high=0.49,
+        stretch_center=center,
+        stretch_scale=scale,
+    )
+    artifact = {
+        "models": [ensemble],
+        "feature_names": [],
+        "metadata": {
+            "model_name": "poker44-handngram-supervised",
+            "model_version": "1.1.0",
+            "training_data": (
+                "Poker44 public training benchmark v1.10 "
+                f"({dates[0]}..{dates[-1]}, {len(hand_docs)} hands)"
+            ),
+            "architecture": (
+                "hand-level ngram LightGBM+LogisticRegression ensemble, "
+                "chunk mean aggregation, sigmoid stretch"
+            ),
+            "score_invert": False,
+            "score_logit_bias": 0.0,
+            "score_logit_temperature": 1.0,
+        },
+        "model_weights": [1.0],
+    }
+    joblib.dump(artifact, args.output)
+
+    scores = np.array(ensemble.predict_chunk_scores(chunk_lists))
+    ap = average_precision_score(chunk_labels, scores)
+    print(
+        f"saved {args.output} | chunks={len(scores)} "
+        f"range=[{scores.min():.4f},{scores.max():.4f}] in-sample AP={ap:.3f}"
+    )
+
+
+if __name__ == "__main__":
+    main()
