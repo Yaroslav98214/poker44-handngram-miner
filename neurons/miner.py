@@ -99,8 +99,14 @@ class Miner(BaseMinerNeuron):
                 )
 
         bt.logging.info(f"🤖 Poker44 Miner started with backend={self.backend}")
-        runtime_commit = self._repo_head(repo_root)
-        runtime_repo_url = self._normalize_repo_url(self._repo_url(repo_root))
+        runtime_commit = (
+            os.getenv("POKER44_MODEL_REPO_COMMIT", "").strip()
+            or self._repo_head(repo_root)
+        )
+        runtime_repo_url = self._normalize_repo_url(
+            os.getenv("POKER44_MODEL_REPO_URL", "").strip()
+            or self._repo_url(repo_root)
+        )
         model_metadata = dict(self.predictor.metadata) if self.predictor is not None else {}
         artifact_repo_commit = str(model_metadata.get("repo_commit", "")).strip()
         artifact_repo_url = self._normalize_repo_url(str(model_metadata.get("repo_url", "")).strip())
