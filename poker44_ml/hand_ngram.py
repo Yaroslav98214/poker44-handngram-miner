@@ -4,15 +4,15 @@ Tokenizes each sanitized hand's action stream into street/action/size tokens,
 builds bag-of-ngram counts, scores every hand with a LightGBM + logistic
 ensemble, and aggregates hand probabilities into a single chunk risk score.
 
-The final chunk score is linearly mapped into [score_low, score_high] so the
-ordering (which drives ranking quality / AP) is preserved while every score
-stays strictly below the 0.5 prediction threshold, keeping validator-side FPR
-at zero.
+Chunk scores use **absolute** calibration (global sigmoid stretch fitted on
+training data), not batch-relative ranking. That keeps scores comparable
+across homogeneous all-human or all-bot validator batches.
 """
 
 from __future__ import annotations
 
 import collections
+import math
 from typing import Any, Dict, List, Sequence
 
 import numpy as np
@@ -115,38 +115,32 @@ class HandNgramEnsemble:
         p_lr = self.lr_model.predict_proba(x)[:, 1]
         return self.lgb_weight * p_lgb + (1.0 - self.lgb_weight) * p_lr
 
+    def _raw_chunk_score(self, chunk: Sequence[Dict[str, Any]]) -> float:
+        probs = self._hand_probs([h for h in chunk if isinstance(h, dict)])
+        if probs.size == 0:
+            return 0.0
+        if self.aggregation == "median":
+            return float(np.median(probs))
+        return float(np.mean(probs))
+
+    @staticmethod
+    def _sigmoid_stretch(raw: float, center: float, scale: float) -> float:
+        scale = max(float(scale), 1e-6)
+        z = (float(raw) - float(center)) / scale
+        z = max(-40.0, min(40.0, z))
+        return 1.0 / (1.0 + math.exp(-z))
+
+    def _map_absolute(self, raw: float) -> float:
+        if self.stretch_center is not None and self.stretch_scale:
+            stretched = self._sigmoid_stretch(raw, self.stretch_center, self.stretch_scale)
+        else:
+            stretched = max(0.0, min(1.0, float(raw)))
+        return self.score_low + (self.score_high - self.score_low) * stretched
+
     # ---- Poker44Model integration point ----
     def predict_chunk_scores(
         self,
         chunks: Sequence[Sequence[Dict[str, Any]]],
         feature_rows: Any = None,
     ) -> List[float]:
-        raws: List[float] = []
-        for chunk in chunks:
-            probs = self._hand_probs([h for h in chunk if isinstance(h, dict)])
-            if probs.size == 0:
-                raw = 0.0
-            elif self.aggregation == "median":
-                raw = float(np.median(probs))
-            else:
-                raw = float(np.mean(probs))
-            raws.append(raw)
-        raw_arr = np.asarray(raws, dtype=np.float64)
-        # Batch-relative mapping: the raw chunk means concentrate in a narrow,
-        # distribution-dependent band, so a fixed global transform saturates on
-        # live traffic. Ranking within the batch is what drives AP, and a
-        # rank-based spread is invariant to that shift. A small min-max blend
-        # keeps raw magnitude info as a tie-breaker.
-        n = raw_arr.size
-        if n == 0:
-            return []
-        if n == 1 or float(raw_arr.max() - raw_arr.min()) < 1e-12:
-            mid = 0.5 * (self.score_low + self.score_high)
-            return [float(mid)] * n
-        order = np.argsort(np.argsort(raw_arr, kind="stable"), kind="stable")
-        rank01 = order / float(n - 1)
-        span = raw_arr.max() - raw_arr.min()
-        minmax01 = (raw_arr - raw_arr.min()) / span
-        blended = 0.85 * rank01 + 0.15 * minmax01
-        mapped = self.score_low + (self.score_high - self.score_low) * blended
-        return [float(v) for v in mapped]
+        return [self._map_absolute(self._raw_chunk_score(chunk)) for chunk in chunks]
