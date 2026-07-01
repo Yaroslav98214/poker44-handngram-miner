@@ -71,6 +71,7 @@ class Poker44Model:
             or self.metadata.get("model_weights")
             or [1.0 for _ in self.models]
         )
+        self.hand_ngram_model = artifact.get("hand_ngram_model")
 
     @staticmethod
     def _clamp01(value: float) -> float:
@@ -81,11 +82,25 @@ class Poker44Model:
         value = max(-40.0, min(40.0, float(value)))
         return 1.0 / (1.0 + math.exp(-value))
 
+    def _hgram_chunk_features(self, chunk: list[dict[str, Any]]) -> dict[str, float]:
+        if self.hand_ngram_model is None:
+            return {}
+        hands = [h for h in chunk if isinstance(h, dict)]
+        if not hands:
+            return {"hgram_mean": 0.0, "hgram_max": 0.0, "hgram_std": 0.0}
+        probs = self.hand_ngram_model._hand_probs(hands)
+        return {
+            "hgram_mean": float(np.mean(probs)),
+            "hgram_max": float(np.max(probs)),
+            "hgram_std": float(np.std(probs)) if len(probs) > 1 else 0.0,
+        }
+
     def _aligned_rows(self, chunks: list[list[dict[str, Any]]]) -> list[list[float]]:
         rows: list[list[float]] = []
         for chunk in chunks:
             features = chunk_features(chunk)
             features["hand_count"] = float(len(chunk))
+            features.update(self._hgram_chunk_features(chunk))
             if not self.feature_names:
                 self.feature_names = sorted(features)
             rows.append([float(features.get(name, 0.0)) for name in self.feature_names])
@@ -162,7 +177,41 @@ class Poker44Model:
     def _apply_score_remap(self, scores: list[float]) -> list[float]:
         if not scores or not self.score_remap:
             return [self._clamp01(value) for value in scores]
-        if self.score_remap.get("kind") != "threshold_logit_v1":
+        kind = self.score_remap.get("kind")
+        if kind == "batch_minmax_v1":
+            try:
+                lo = float(self.score_remap.get("lo", 0.08))
+                hi = float(self.score_remap.get("hi", 0.46))
+            except (TypeError, ValueError):
+                return [self._clamp01(value) for value in scores]
+            values = [float(value) for value in scores]
+            mn = min(values)
+            mx = max(values)
+            if mx - mn < 1e-9:
+                mid = self._clamp01((lo + hi) / 2.0)
+                return [mid for _ in values]
+            span = hi - lo
+            return [
+                self._clamp01(lo + ((value - mn) / (mx - mn)) * span)
+                for value in values
+            ]
+        if kind == "batch_rank_v1":
+            try:
+                lo = float(self.score_remap.get("lo", 0.08))
+                span = float(self.score_remap.get("span", 0.30))
+            except (TypeError, ValueError):
+                return [self._clamp01(value) for value in scores]
+            values = [float(value) for value in scores]
+            if len(values) <= 1:
+                mid = self._clamp01(lo + span / 2.0)
+                return [mid for _ in values]
+            order = sorted(range(len(values)), key=lambda index: values[index])
+            denom = max(len(values) - 1, 1)
+            ranks = [0.0] * len(values)
+            for rank, index in enumerate(order):
+                ranks[index] = rank / denom
+            return [self._clamp01(lo + rank * span) for rank in ranks]
+        if kind != "threshold_logit_v1":
             return [self._clamp01(value) for value in scores]
         try:
             threshold = float(self.score_remap.get("threshold", 0.5))
