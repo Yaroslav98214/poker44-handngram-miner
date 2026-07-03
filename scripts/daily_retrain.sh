@@ -74,9 +74,9 @@ with open(BENCH_FILE, "w") as f:
 print(f"Saved: {len(all_chunks)} total chunks (added {len(new_chunks)} new)")
 PYEOF
 
-# 2. Retrain hybrid v122 model (AP-first + live-range calibration for R5)
-log "Running v122 hybrid model training..."
-$PYTHON -m training.train_v122 2>&1 | tee -a "$LOG_FILE"
+# 2. Retrain hybrid v123 model (live-band calibration, no batch quantile)
+log "Running v123 hybrid model training..."
+$PYTHON -m training.train_v123 2>&1 | tee -a "$LOG_FILE"
 RETRAIN_EXIT=$?
 
 if [ $RETRAIN_EXIT -ne 0 ]; then
@@ -85,7 +85,7 @@ if [ $RETRAIN_EXIT -ne 0 ]; then
 fi
 
 # 3. Check if new model is better (compare holdout AP)
-NEW_SHA=$(sha256sum models/poker44_v122_deploy.joblib | cut -d' ' -f1)
+NEW_SHA=$(sha256sum models/poker44_v123_deploy.joblib | cut -d' ' -f1)
 CURRENT_SHA=$(pm2 env 2 2>/dev/null | grep POKER44_MODEL_ARTIFACT_SHA256 | awk '{print $2}')
 log "New model SHA256: $NEW_SHA"
 log "Current model SHA256: $CURRENT_SHA"
@@ -98,9 +98,9 @@ fi
 # 4. Deploy new model
 log "Deploying new model..."
 COMMIT=$(git rev-parse HEAD)
-export POKER44_MODEL_PATH=./models/poker44_v122_deploy.joblib
-export POKER44_MODEL_NAME=poker44-v122-hybrid
-export POKER44_MODEL_VERSION=1.22.0
+export POKER44_MODEL_PATH=./models/poker44_v123_deploy.joblib
+export POKER44_MODEL_NAME=poker44-v123-hybrid
+export POKER44_MODEL_VERSION=1.23.0
 export POKER44_MODEL_SHA256=$NEW_SHA
 export POKER44_MODEL_ARTIFACT_SHA256=$NEW_SHA
 export POKER44_MODEL_REPO_COMMIT=$COMMIT
@@ -108,9 +108,9 @@ export POKER44_MODEL_REPO_URL=https://github.com/Yaroslav98214/poker44-handngram
 export POKER44_MODEL_OPEN_SOURCE=true
 export POKER44_LOG_SCORE_ARRAYS=1
 export POKER44_LOG_SCORE_COMPONENTS=1
-export POKER44_MODEL_FRAMEWORK=hybrid-lgb-xgb-et-hgram-quantile-apfirst
+export POKER44_MODEL_FRAMEWORK=hybrid-lgb-xgb-et-hgram-liveband-apfirst
 export POKER44_MODEL_TRAINING_DATA_SOURCES=released_training_benchmark_v112
-export POKER44_MODEL_TRAINING_DATA_STATEMENT="Trained on public Poker44 benchmark through 2026-07-01 with AP-first calibration and live-range score_remap guard for mixed R5 batches."
+export POKER44_MODEL_TRAINING_DATA_STATEMENT="Trained on public Poker44 benchmark through 2026-07-03 with live-band threshold calibration and disabled per-batch quantile spread."
 export POKER44_MODEL_PRIVATE_DATA_ATTESTATION="No private data used. Training uses only the public benchmark API corpus."
 export POKER44_MODEL_DATA_ATTESTATION="No private data used. Training uses only the public benchmark API corpus."
 
