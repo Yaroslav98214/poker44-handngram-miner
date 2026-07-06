@@ -43,22 +43,22 @@ module.exports = {
       interpreter: "none",
       env: {
         PYTHONPATH: "/root/Poker44-top-miner",
-        POKER44_MODEL_PATH: "/root/Poker44-top-miner/models/poker44_v123_deploy.joblib",
-        POKER44_MODEL_NAME: "poker44-v123-hybrid",
-        POKER44_MODEL_VERSION: "1.23.0",
+        POKER44_MODEL_PATH: "/root/Poker44-top-miner/models/poker44_v124_deploy.joblib",
+        POKER44_MODEL_NAME: "poker44-v124-hybrid",
+        POKER44_MODEL_VERSION: "1.24.0",
         POKER44_MODEL_SHA256:
-          "0aa3ac4bfdf746624853c8d8482f39d15a22b220955c3e66e5469dee31bc6fa0",
+          "3cf1c3792ae7e2e0f1904e6d83164ea1e71add6f0edb132c84454b84ebb396b5",
         POKER44_MODEL_ARTIFACT_SHA256:
-          "0aa3ac4bfdf746624853c8d8482f39d15a22b220955c3e66e5469dee31bc6fa0",
+          "3cf1c3792ae7e2e0f1904e6d83164ea1e71add6f0edb132c84454b84ebb396b5",
         POKER44_MODEL_REPO_URL:
           "https://github.com/Yaroslav98214/poker44-handngram-miner.git",
         POKER44_MODEL_REPO_COMMIT:
-          "09b61b8658fe2820d39674429c433129d0027bcd",
+          "40eefd99fd4898ef335e5f43054aad083e40cc7d",
         POKER44_MODEL_OPEN_SOURCE: "true",
-        POKER44_MODEL_FRAMEWORK: "hybrid-lgb-xgb-et-hgram-liveband-apfirst",
-        POKER44_MODEL_TRAINING_DATA_SOURCES: "released_training_benchmark_v112",
+        POKER44_MODEL_FRAMEWORK: "hybrid-lgb-xgb-et-hgram-v22-apfirst",
+        POKER44_MODEL_TRAINING_DATA_SOURCES: "released_training_benchmark_v113",
         POKER44_MODEL_TRAINING_DATA_STATEMENT:
-          "Trained on public Poker44 benchmark through 2026-07-03 with live-band threshold calibration and disabled per-batch quantile spread.",
+          "Trained on public Poker44 benchmark v1.13 through 2026-07-06 with holdout-first calibration for v2.2 competition.",
         POKER44_MODEL_PRIVATE_DATA_ATTESTATION:
           "No private data used. Training uses only the public benchmark API corpus.",
         POKER44_MODEL_DATA_ATTESTATION:
