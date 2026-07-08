@@ -22,7 +22,7 @@ BENCH = REPO / "hands_generator/evaluation_datas/training_benchmark_v112_full.tx
 
 LO = 0.14
 SPAN = 0.82
-BIAS = 1.3
+BIAS = 0.70
 
 
 def batch_rank(raw: np.ndarray, lo: float, span: float) -> np.ndarray:

@@ -76,7 +76,7 @@ PYEOF
 
 # 2. Retrain hybrid v124 model (v2.2 benchmark-first calibration)
 log "Running v124 hybrid model training..."
-$PYTHON -m training.train_v125 2>&1 | tee -a "$LOG_FILE"
+$PYTHON -m training.train_v126 2>&1 | tee -a "$LOG_FILE"
 RETRAIN_EXIT=$?
 
 if [ $RETRAIN_EXIT -ne 0 ]; then
