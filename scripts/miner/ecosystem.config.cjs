@@ -53,7 +53,7 @@ module.exports = {
         POKER44_MODEL_REPO_URL:
           "https://github.com/Yaroslav98214/poker44-handngram-miner.git",
         POKER44_MODEL_REPO_COMMIT:
-          "3b11ec9428db7c96c822b2b2eb8d2b53345d825c",
+          "f12bb90aab4b33c2d79aceead9c5a9eb07330b05",
         POKER44_MODEL_OPEN_SOURCE: "true",
         POKER44_MODEL_FRAMEWORK: "hybrid-lgb-xgb-et-hgram-v127-jul9",
         POKER44_MODEL_TRAINING_DATA_SOURCES: "released_training_benchmark_v113",
