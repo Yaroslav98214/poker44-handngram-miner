@@ -74,9 +74,9 @@ with open(BENCH_FILE, "w") as f:
 print(f"Saved: {len(all_chunks)} total chunks (added {len(new_chunks)} new)")
 PYEOF
 
-# 2. Retrain hybrid v124 model (v2.2 benchmark-first calibration)
-log "Running v124 hybrid model training..."
-$PYTHON -m training.train_v126 2>&1 | tee -a "$LOG_FILE"
+# 2. Retrain hybrid v127 model (Jul 9 benchmark + live bot-rate guard)
+log "Running v127 hybrid model training..."
+$PYTHON -m training.train_v127 2>&1 | tee -a "$LOG_FILE"
 RETRAIN_EXIT=$?
 
 if [ $RETRAIN_EXIT -ne 0 ]; then
@@ -84,37 +84,27 @@ if [ $RETRAIN_EXIT -ne 0 ]; then
     exit 1
 fi
 
-# 3. Check if new model is better (compare holdout AP)
-NEW_SHA=$(sha256sum models/poker44_v124_deploy.joblib | cut -d' ' -f1)
-CURRENT_SHA=$(pm2 env 2 2>/dev/null | grep POKER44_MODEL_ARTIFACT_SHA256 | awk '{print $2}')
+# 3. Deploy if model artifact changed
+NEW_SHA=$(sha256sum models/poker44_v127_deploy.joblib | cut -d' ' -f1)
+CURRENT_SHA=$(grep POKER44_MODEL_ARTIFACT_SHA256 scripts/miner/ecosystem.config.cjs | head -1 | tr -d ' ",')
 log "New model SHA256: $NEW_SHA"
-log "Current model SHA256: $CURRENT_SHA"
+log "Ecosystem SHA256: $CURRENT_SHA"
 
 if [ "$NEW_SHA" = "$CURRENT_SHA" ]; then
     log "Model unchanged, skipping deployment."
     exit 0
 fi
 
-# 4. Deploy new model
+# 4. Update ecosystem config and restart miner
 log "Deploying new model..."
 COMMIT=$(git rev-parse HEAD)
-export POKER44_MODEL_PATH=./models/poker44_v124_deploy.joblib
-export POKER44_MODEL_NAME=poker44-v124-hybrid
-export POKER44_MODEL_VERSION=1.24.0
-export POKER44_MODEL_SHA256=$NEW_SHA
-export POKER44_MODEL_ARTIFACT_SHA256=$NEW_SHA
-export POKER44_MODEL_REPO_COMMIT=$COMMIT
-export POKER44_MODEL_REPO_URL=https://github.com/Yaroslav98214/poker44-handngram-miner.git
-export POKER44_MODEL_OPEN_SOURCE=true
-export POKER44_LOG_SCORE_ARRAYS=1
-export POKER44_LOG_SCORE_COMPONENTS=1
-export POKER44_MODEL_FRAMEWORK=hybrid-lgb-xgb-et-hgram-v22-apfirst
-export POKER44_MODEL_TRAINING_DATA_SOURCES=released_training_benchmark_v113
-export POKER44_MODEL_TRAINING_DATA_STATEMENT="Trained on public Poker44 benchmark v1.13 through 2026-07-06 with holdout-first calibration for v2.2 competition."
-export POKER44_MODEL_PRIVATE_DATA_ATTESTATION="No private data used. Training uses only the public benchmark API corpus."
-export POKER44_MODEL_DATA_ATTESTATION="No private data used. Training uses only the public benchmark API corpus."
+sed -i "s|POKER44_MODEL_PATH:.*|POKER44_MODEL_PATH: \"/root/Poker44-top-miner/models/poker44_v127_deploy.joblib\",|" scripts/miner/ecosystem.config.cjs
+sed -i "s|POKER44_MODEL_SHA256:.*|POKER44_MODEL_SHA256:|" scripts/miner/ecosystem.config.cjs
+sed -i "0,/POKER44_MODEL_SHA256:/!b;//n;c\\          \"$NEW_SHA\"," scripts/miner/ecosystem.config.cjs 2>/dev/null || true
 
-pm2 restart poker44-miner --update-env
+pm2 delete poker44-miner 2>/dev/null || true
+pm2 start scripts/miner/ecosystem.config.cjs --update-env
+pm2 save
 sleep 5
 log "Miner restarted successfully with new model"
 tail -5 /root/.pm2/logs/poker44-miner-out.log >> "$LOG_FILE"
