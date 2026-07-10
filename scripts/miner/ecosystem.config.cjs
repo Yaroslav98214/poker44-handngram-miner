@@ -1,9 +1,6 @@
 /**
  * PM2 ecosystem config for Poker44 UID 208 (justice-coldkey / justice-hotkey-poker44).
- *
- * Usage:
- *   pm2 start scripts/miner/ecosystem.config.cjs
- *   pm2 save
+ * Pinned to v123 — R1-era threshold_logit pipeline (Jul 6 benchmark).
  */
 module.exports = {
   apps: [
@@ -40,19 +37,21 @@ module.exports = {
       interpreter: "none",
       env: {
         PYTHONPATH: "/root/Poker44-top-miner",
-        POKER44_MODEL_PATH: "/root/Poker44-top-miner/models/poker44_v128_deploy.joblib",
-        POKER44_MODEL_NAME: "poker44-v128-hybrid",
-        POKER44_MODEL_VERSION: "1.28.0",
-        POKER44_MODEL_SHA256: "bbcdf5d8de215bb0b508d1e233c6e01ea2b9a357d4617b4f6b3f8e82677cc5c2",
-        POKER44_MODEL_ARTIFACT_SHA256: "bbcdf5d8de215bb0b508d1e233c6e01ea2b9a357d4617b4f6b3f8e82677cc5c2",
+        POKER44_MODEL_PATH: "/root/Poker44-top-miner/models/poker44_v123_deploy.joblib",
+        POKER44_MODEL_NAME: "poker44-v123-hybrid",
+        POKER44_MODEL_VERSION: "1.23.0",
+        POKER44_MODEL_SHA256:
+          "c05d22d7d74f75583f76d6c36c85070d77d8c7f71abd415b085134843523b9c0",
+        POKER44_MODEL_ARTIFACT_SHA256:
+          "c05d22d7d74f75583f76d6c36c85070d77d8c7f71abd415b085134843523b9c0",
         POKER44_MODEL_REPO_URL:
           "https://github.com/Yaroslav98214/poker44-handngram-miner.git",
         POKER44_MODEL_REPO_COMMIT: "PLACEHOLDER",
         POKER44_MODEL_OPEN_SOURCE: "true",
-        POKER44_MODEL_FRAMEWORK: "hybrid-lgb-xgb-et-hgram-v128-jul10",
+        POKER44_MODEL_FRAMEWORK: "hybrid-lgb-xgb-et-hgram-v123-r1",
         POKER44_MODEL_TRAINING_DATA_SOURCES: "released_training_benchmark_v113",
         POKER44_MODEL_TRAINING_DATA_STATEMENT:
-          "Trained on public Poker44 benchmark v1.13 through 2026-07-10 with 100-chunk batch calibration.",
+          "Reverted to R1-era v123 threshold_logit pipeline trained through 2026-07-06.",
         POKER44_MODEL_PRIVATE_DATA_ATTESTATION:
           "No private data used. Training uses only the public benchmark API corpus.",
         POKER44_MODEL_DATA_ATTESTATION:

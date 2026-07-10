@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Daily auto-retrain pipeline for Poker44 UID 208
+# Daily pipeline for Poker44 UID 208: fetch benchmark + retrain v123 (R1 threshold_logit).
 set -euo pipefail
 
 REPO=/root/Poker44-top-miner
 PYTHON="$REPO/miner_env/bin/python3"
 LOG_FILE="$REPO/logs/daily_retrain.log"
 ECOSYSTEM="$REPO/scripts/miner/ecosystem.config.cjs"
+MODEL_PATH="$REPO/models/poker44_v123_deploy.joblib"
 mkdir -p "$REPO/logs"
 
 log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*" | tee -a "$LOG_FILE"; }
@@ -69,9 +70,9 @@ with open(BENCH_FILE, "w") as f:
 print(f"Saved: {len(all_chunks)} total chunks (added {len(new_chunks)} new)")
 PYEOF
 
-# 2. Retrain v128
-log "Running v128 hybrid model training..."
-$PYTHON -m training.train_v128 2>&1 | tee -a "$LOG_FILE"
+# 2. Retrain v123 (R1-era threshold_logit pipeline — no batch_rank)
+log "Running v123 hybrid model training..."
+$PYTHON -m training.train_v123 2>&1 | tee -a "$LOG_FILE"
 RETRAIN_EXIT=$?
 
 if [ $RETRAIN_EXIT -ne 0 ]; then
@@ -79,8 +80,36 @@ if [ $RETRAIN_EXIT -ne 0 ]; then
     exit 1
 fi
 
-# 3. Deploy if artifact changed
-NEW_SHA=$(sha256sum models/poker44_v128_deploy.joblib | cut -d' ' -f1)
+# 3. Quality gate: threshold_logit only, holdout FPR below validator cliff
+read -r NEW_SHA HOLDOUT_FPR HOLDOUT_REWARD REMAP_KIND <<< "$($PYTHON - << PY
+import hashlib, joblib, sys
+path = "$MODEL_PATH"
+with open(path, "rb") as f:
+    sha = hashlib.sha256(f.read()).hexdigest()
+art = joblib.load(path)
+meta = art.get("metadata") or {}
+remap = art.get("score_remap") or meta.get("score_remap") or {}
+kind = str(remap.get("kind", ""))
+fpr = float(meta.get("holdout_fpr", 1.0))
+reward = float(meta.get("holdout_reward", 0.0))
+print(sha, f"{fpr:.4f}", f"{reward:.4f}", kind)
+PY
+)"
+
+log "New model SHA256: $NEW_SHA"
+log "Holdout FPR=$HOLDOUT_FPR reward=$HOLDOUT_REWARD remap=$REMAP_KIND"
+
+if [ "$REMAP_KIND" != "threshold_logit_v1" ]; then
+    log "ERROR: Refusing deploy — expected threshold_logit_v1, got $REMAP_KIND"
+    exit 1
+fi
+
+$PYTHON - << PY
+fpr = float("$HOLDOUT_FPR")
+if fpr > 0.10:
+    raise SystemExit(f"Holdout FPR {fpr:.3f} exceeds 10% validator cliff")
+PY
+
 CURRENT_SHA=$($PYTHON - << PY
 import re, pathlib
 text = pathlib.Path("$ECOSYSTEM").read_text()
@@ -88,16 +117,16 @@ m = re.search(r'POKER44_MODEL_ARTIFACT_SHA256:\s*"([a-f0-9]{64})"', text)
 print(m.group(1) if m else "")
 PY
 )
-log "New model SHA256: $NEW_SHA"
-log "Current model SHA256: $CURRENT_SHA"
+log "Current deployed SHA256: $CURRENT_SHA"
 
 if [ "$NEW_SHA" = "$CURRENT_SHA" ]; then
     log "Model unchanged, skipping deployment."
+    log "=== Daily Retrain Complete ==="
     exit 0
 fi
 
 # 4. Update ecosystem SHA fields safely and restart
-log "Deploying new model..."
+log "Deploying new v123 model..."
 COMMIT=$(git rev-parse HEAD)
 $PYTHON - << PY
 import pathlib, re
@@ -125,7 +154,7 @@ pm2 delete poker44-miner 2>/dev/null || true
 pm2 start "$ECOSYSTEM" --update-env
 pm2 save
 sleep 5
-log "Miner restarted successfully with new model"
+log "Miner restarted successfully with new v123 model"
 tail -5 /root/.pm2/logs/poker44-miner-out.log >> "$LOG_FILE"
 
 log "=== Daily Retrain Complete ==="
