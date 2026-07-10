@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Daily auto-retrain pipeline for Poker44 UID 198
-# Fetches latest benchmark data, retrains model, deploys if improved
+# Daily auto-retrain pipeline for Poker44 UID 208
 set -euo pipefail
 
 REPO=/root/Poker44-top-miner
 PYTHON="$REPO/miner_env/bin/python3"
 LOG_FILE="$REPO/logs/daily_retrain.log"
+ECOSYSTEM="$REPO/scripts/miner/ecosystem.config.cjs"
 mkdir -p "$REPO/logs"
 
 log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*" | tee -a "$LOG_FILE"; }
@@ -22,19 +22,16 @@ from pathlib import Path
 API_BASE = "https://api.poker44.net/api/v1/benchmark"
 BENCH_FILE = Path("hands_generator/evaluation_datas/training_benchmark_v112_full.txt")
 
-# Get status
 status = requests.get(API_BASE, timeout=30).json()["data"]
 latest_date = status["latestSourceDate"]
 print(f"API latest date: {latest_date}")
 
-# Load existing data
 with open(BENCH_FILE) as f:
     existing_data = json.load(f)
 existing_chunks = existing_data["data"]["chunks"]
 existing_dates = set(c.get("sourceDate", "") for c in existing_chunks)
 print(f"Existing dates: {sorted(existing_dates)[-3:]}, total chunks: {len(existing_chunks)}")
 
-# Find missing dates
 from datetime import date, timedelta
 start_date = date(2026, 5, 26)
 end_date = date.fromisoformat(latest_date)
@@ -51,7 +48,6 @@ if not new_dates:
     print("No new data to fetch.")
     sys.exit(0)
 
-# Fetch each missing date
 new_chunks = []
 for date_str in new_dates:
     try:
@@ -66,7 +62,6 @@ if not new_chunks:
     print("No new chunks fetched.")
     sys.exit(0)
 
-# Append and save
 all_chunks = existing_chunks + new_chunks
 updated_data = {"data": {"releaseVersion": "v1.12", "chunks": all_chunks}}
 with open(BENCH_FILE, "w") as f:
@@ -74,9 +69,9 @@ with open(BENCH_FILE, "w") as f:
 print(f"Saved: {len(all_chunks)} total chunks (added {len(new_chunks)} new)")
 PYEOF
 
-# 2. Retrain hybrid v127 model (Jul 9 benchmark + live bot-rate guard)
-log "Running v127 hybrid model training..."
-$PYTHON -m training.train_v127 2>&1 | tee -a "$LOG_FILE"
+# 2. Retrain v128
+log "Running v128 hybrid model training..."
+$PYTHON -m training.train_v128 2>&1 | tee -a "$LOG_FILE"
 RETRAIN_EXIT=$?
 
 if [ $RETRAIN_EXIT -ne 0 ]; then
@@ -84,26 +79,50 @@ if [ $RETRAIN_EXIT -ne 0 ]; then
     exit 1
 fi
 
-# 3. Deploy if model artifact changed
-NEW_SHA=$(sha256sum models/poker44_v127_deploy.joblib | cut -d' ' -f1)
-CURRENT_SHA=$(grep POKER44_MODEL_ARTIFACT_SHA256 scripts/miner/ecosystem.config.cjs | head -1 | tr -d ' ",')
+# 3. Deploy if artifact changed
+NEW_SHA=$(sha256sum models/poker44_v128_deploy.joblib | cut -d' ' -f1)
+CURRENT_SHA=$($PYTHON - << PY
+import re, pathlib
+text = pathlib.Path("$ECOSYSTEM").read_text()
+m = re.search(r'POKER44_MODEL_ARTIFACT_SHA256:\s*"([a-f0-9]{64})"', text)
+print(m.group(1) if m else "")
+PY
+)
 log "New model SHA256: $NEW_SHA"
-log "Ecosystem SHA256: $CURRENT_SHA"
+log "Current model SHA256: $CURRENT_SHA"
 
 if [ "$NEW_SHA" = "$CURRENT_SHA" ]; then
     log "Model unchanged, skipping deployment."
     exit 0
 fi
 
-# 4. Update ecosystem config and restart miner
+# 4. Update ecosystem SHA fields safely and restart
 log "Deploying new model..."
 COMMIT=$(git rev-parse HEAD)
-sed -i "s|POKER44_MODEL_PATH:.*|POKER44_MODEL_PATH: \"/root/Poker44-top-miner/models/poker44_v127_deploy.joblib\",|" scripts/miner/ecosystem.config.cjs
-sed -i "s|POKER44_MODEL_SHA256:.*|POKER44_MODEL_SHA256:|" scripts/miner/ecosystem.config.cjs
-sed -i "0,/POKER44_MODEL_SHA256:/!b;//n;c\\          \"$NEW_SHA\"," scripts/miner/ecosystem.config.cjs 2>/dev/null || true
+$PYTHON - << PY
+import pathlib, re
+path = pathlib.Path("$ECOSYSTEM")
+text = path.read_text()
+text = re.sub(
+    r'POKER44_MODEL_SHA256:\s*"[^"]*"',
+    f'POKER44_MODEL_SHA256: "{("$NEW_SHA")}"',
+    text,
+)
+text = re.sub(
+    r'POKER44_MODEL_ARTIFACT_SHA256:\s*"[^"]*"',
+    f'POKER44_MODEL_ARTIFACT_SHA256: "{("$NEW_SHA")}"',
+    text,
+)
+text = re.sub(
+    r'POKER44_MODEL_REPO_COMMIT:\s*"[^"]*"',
+    f'POKER44_MODEL_REPO_COMMIT: "{("$COMMIT")}"',
+    text,
+)
+path.write_text(text)
+PY
 
 pm2 delete poker44-miner 2>/dev/null || true
-pm2 start scripts/miner/ecosystem.config.cjs --update-env
+pm2 start "$ECOSYSTEM" --update-env
 pm2 save
 sleep 5
 log "Miner restarted successfully with new model"

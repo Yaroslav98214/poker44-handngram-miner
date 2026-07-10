@@ -1,12 +1,9 @@
 /**
- * PM2 ecosystem config for Poker44 UID 198 (justice-coldkey / justice-hotkey-poker44).
+ * PM2 ecosystem config for Poker44 UID 208 (justice-coldkey / justice-hotkey-poker44).
  *
  * Usage:
  *   pm2 start scripts/miner/ecosystem.config.cjs
  *   pm2 save
- *
- * After a git push, update POKER44_MODEL_REPO_COMMIT to match `git rev-parse HEAD`
- * before R6 opens so the manifest matches the published repo.
  */
 module.exports = {
   apps: [
@@ -43,22 +40,19 @@ module.exports = {
       interpreter: "none",
       env: {
         PYTHONPATH: "/root/Poker44-top-miner",
-        POKER44_MODEL_PATH: "/root/Poker44-top-miner/models/poker44_v127_deploy.joblib",
-        POKER44_MODEL_NAME: "poker44-v127-hybrid",
-        POKER44_MODEL_VERSION: "1.27.0",
-        POKER44_MODEL_SHA256:
-          "c6c92031587deed8125fc6afc57881d59ad5f779f66ec95a93e6256dc6cc3a91",
-        POKER44_MODEL_ARTIFACT_SHA256:
-          "c6c92031587deed8125fc6afc57881d59ad5f779f66ec95a93e6256dc6cc3a91",
+        POKER44_MODEL_PATH: "/root/Poker44-top-miner/models/poker44_v128_deploy.joblib",
+        POKER44_MODEL_NAME: "poker44-v128-hybrid",
+        POKER44_MODEL_VERSION: "1.28.0",
+        POKER44_MODEL_SHA256: "bbcdf5d8de215bb0b508d1e233c6e01ea2b9a357d4617b4f6b3f8e82677cc5c2",
+        POKER44_MODEL_ARTIFACT_SHA256: "bbcdf5d8de215bb0b508d1e233c6e01ea2b9a357d4617b4f6b3f8e82677cc5c2",
         POKER44_MODEL_REPO_URL:
           "https://github.com/Yaroslav98214/poker44-handngram-miner.git",
-        POKER44_MODEL_REPO_COMMIT:
-          "f12bb90aab4b33c2d79aceead9c5a9eb07330b05",
+        POKER44_MODEL_REPO_COMMIT: "PLACEHOLDER",
         POKER44_MODEL_OPEN_SOURCE: "true",
-        POKER44_MODEL_FRAMEWORK: "hybrid-lgb-xgb-et-hgram-v127-jul9",
+        POKER44_MODEL_FRAMEWORK: "hybrid-lgb-xgb-et-hgram-v128-jul10",
         POKER44_MODEL_TRAINING_DATA_SOURCES: "released_training_benchmark_v113",
         POKER44_MODEL_TRAINING_DATA_STATEMENT:
-          "Trained on public Poker44 benchmark v1.13 through 2026-07-09 with live-batch bot-rate calibration guard.",
+          "Trained on public Poker44 benchmark v1.13 through 2026-07-10 with 100-chunk batch calibration.",
         POKER44_MODEL_PRIVATE_DATA_ATTESTATION:
           "No private data used. Training uses only the public benchmark API corpus.",
         POKER44_MODEL_DATA_ATTESTATION:
