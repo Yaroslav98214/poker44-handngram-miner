@@ -40,13 +40,11 @@ module.exports = {
         POKER44_MODEL_PATH: "/root/Poker44-top-miner/models/poker44_v123_deploy.joblib",
         POKER44_MODEL_NAME: "poker44-v123-hybrid",
         POKER44_MODEL_VERSION: "1.23.0",
-        POKER44_MODEL_SHA256:
-          "c05d22d7d74f75583f76d6c36c85070d77d8c7f71abd415b085134843523b9c0",
-        POKER44_MODEL_ARTIFACT_SHA256:
-          "c05d22d7d74f75583f76d6c36c85070d77d8c7f71abd415b085134843523b9c0",
+        POKER44_MODEL_SHA256: "75535ce7677ff9349b78ab0bd6a3264ada55c3e1ac48a04cdc3f46013a781071",
+        POKER44_MODEL_ARTIFACT_SHA256: "75535ce7677ff9349b78ab0bd6a3264ada55c3e1ac48a04cdc3f46013a781071",
         POKER44_MODEL_REPO_URL:
           "https://github.com/Yaroslav98214/poker44-handngram-miner.git",
-        POKER44_MODEL_REPO_COMMIT: "917f292",
+        POKER44_MODEL_REPO_COMMIT: "0ed28811db1ab6a19547746a79a69d836b7796d3",
         POKER44_MODEL_OPEN_SOURCE: "true",
         POKER44_MODEL_FRAMEWORK: "hybrid-lgb-xgb-et-hgram-v123-r1",
         POKER44_MODEL_TRAINING_DATA_SOURCES: "released_training_benchmark_v113",

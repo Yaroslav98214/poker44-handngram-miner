@@ -16,6 +16,7 @@ from poker44.utils.model_manifest import (
     artifact_model_identity,
     build_local_model_manifest,
     evaluate_manifest_compliance,
+    is_valid_git_commit,
     manifest_digest,
 )
 from poker44.validator.synapse import DetectionSynapse
@@ -99,10 +100,16 @@ class Miner(BaseMinerNeuron):
                 )
 
         bt.logging.info(f"🤖 Poker44 Miner started with backend={self.backend}")
+        env_repo_commit = os.getenv("POKER44_MODEL_REPO_COMMIT", "").strip()
         runtime_commit = (
-            os.getenv("POKER44_MODEL_REPO_COMMIT", "").strip()
-            or self._repo_head(repo_root)
-        )
+            env_repo_commit if is_valid_git_commit(env_repo_commit) else ""
+        ) or self._repo_head(repo_root)
+        if env_repo_commit and not is_valid_git_commit(env_repo_commit):
+            bt.logging.warning(
+                "Ignoring invalid POKER44_MODEL_REPO_COMMIT=%r; using git HEAD %s",
+                env_repo_commit,
+                runtime_commit or "unknown",
+            )
         runtime_repo_url = self._normalize_repo_url(
             os.getenv("POKER44_MODEL_REPO_URL", "").strip()
             or self._repo_url(repo_root)

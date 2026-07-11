@@ -28,6 +28,11 @@ GIT_COMMIT_RE = re.compile(r"^[0-9a-f]{7,40}$")
 _ARTIFACT_VERSION_RE = re.compile(r"_v(\d+)$", re.IGNORECASE)
 
 
+def is_valid_git_commit(value: Any) -> bool:
+    """Return True when *value* looks like a git commit hash."""
+    return bool(GIT_COMMIT_RE.fullmatch(str(value or "").strip()))
+
+
 def artifact_model_identity(artifact_path: str | Path) -> Dict[str, str]:
     """Derive manifest ``model_name`` / ``model_version`` from a joblib filename."""
     path = Path(artifact_path)
@@ -224,7 +229,7 @@ def _has_implementation_files(manifest: Mapping[str, Any]) -> bool:
 
 
 def _looks_like_git_commit(value: Any) -> bool:
-    return bool(GIT_COMMIT_RE.fullmatch(str(value).strip()))
+    return is_valid_git_commit(value)
 
 
 def evaluate_manifest_compliance(manifest: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
