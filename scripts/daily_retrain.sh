@@ -80,6 +80,15 @@ if [ $RETRAIN_EXIT -ne 0 ]; then
     exit 1
 fi
 
+# 2b. Retune calibration for current live arena raw bands
+log "Retuning v123 live arena calibration..."
+$PYTHON -m training.retune_v123_live_calibration 2>&1 | tee -a "$LOG_FILE"
+RETUNE_EXIT=$?
+if [ $RETUNE_EXIT -ne 0 ]; then
+    log "ERROR: Live calibration retune failed with exit code $RETUNE_EXIT"
+    exit 1
+fi
+
 # 3. Quality gate: threshold_logit only, holdout FPR below validator cliff
 read -r NEW_SHA HOLDOUT_FPR HOLDOUT_REWARD REMAP_KIND <<< "$($PYTHON - << PY
 import hashlib, joblib, sys
@@ -119,10 +128,14 @@ PY
 )
 log "Current deployed SHA256: $CURRENT_SHA"
 
-if [ "$NEW_SHA" = "$CURRENT_SHA" ]; then
-    log "Model unchanged, skipping deployment."
+PM2_SHA=$(pm2 env poker44-miner 2>/dev/null | sed -n 's/^POKER44_MODEL_ARTIFACT_SHA256: //p' | head -1)
+if [ "$NEW_SHA" = "$CURRENT_SHA" ] && [ -n "$PM2_SHA" ] && [ "$PM2_SHA" = "$NEW_SHA" ]; then
+    log "Model unchanged and PM2 matches, skipping deployment."
     log "=== Daily Retrain Complete ==="
     exit 0
+fi
+if [ -n "$PM2_SHA" ] && [ "$PM2_SHA" != "$NEW_SHA" ]; then
+    log "PM2 artifact SHA ($PM2_SHA) differs from retrained model ($NEW_SHA); forcing deploy."
 fi
 
 # 4. Update ecosystem SHA fields safely and restart

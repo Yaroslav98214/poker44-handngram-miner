@@ -41,6 +41,7 @@ HOLDOUT_DATES = {"2026-07-02", "2026-07-03"}
 RECENT_DATES = {
     "2026-06-25", "2026-06-26", "2026-06-27", "2026-06-28",
     "2026-06-29", "2026-06-30", "2026-07-01", "2026-07-02", "2026-07-03",
+    "2026-07-10", "2026-07-11", "2026-07-12",
 }
 HUMAN_W = 25.0
 RECENCY_BOOST = 8.0
@@ -50,9 +51,9 @@ MIN_TOKEN = 40
 BATCH_BOTS = 50
 BATCH_HUMANS = 50
 QUANTILE_BLEND = 0.0  # disable per-batch quantile spread (hurts homogeneous live batches)
-# Observed live PM2 bands (Jul 2026): human 0.356-0.490, bot 0.592-0.633
-LOW_RAW_LO, LOW_RAW_HI = 0.356, 0.490
-HIGH_RAW_LO, HIGH_RAW_HI = 0.592, 0.633
+# Observed live PM2 raw bands (Jul 11-12 arena homogeneous batches)
+LOW_RAW_LO, LOW_RAW_HI = 0.065, 0.20
+HIGH_RAW_LO, HIGH_RAW_HI = 0.22, 0.50
 
 
 def build_hand_ngram_model(train_ex, test_ex):

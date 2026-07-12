@@ -40,16 +40,16 @@ module.exports = {
         POKER44_MODEL_PATH: "/root/Poker44-top-miner/models/poker44_v123_deploy.joblib",
         POKER44_MODEL_NAME: "poker44-v123-hybrid",
         POKER44_MODEL_VERSION: "1.23.0",
-        POKER44_MODEL_SHA256: "75535ce7677ff9349b78ab0bd6a3264ada55c3e1ac48a04cdc3f46013a781071",
-        POKER44_MODEL_ARTIFACT_SHA256: "75535ce7677ff9349b78ab0bd6a3264ada55c3e1ac48a04cdc3f46013a781071",
+        POKER44_MODEL_SHA256: "1954f2610dd4614d034f69c52fa55d834d24c2c8a5fe837cdb76b4af12603598",
+        POKER44_MODEL_ARTIFACT_SHA256: "1954f2610dd4614d034f69c52fa55d834d24c2c8a5fe837cdb76b4af12603598",
         POKER44_MODEL_REPO_URL:
           "https://github.com/Yaroslav98214/poker44-handngram-miner.git",
-        POKER44_MODEL_REPO_COMMIT: "af5c83bb62acb038acae66bf11879061d52e77bb",
+        POKER44_MODEL_REPO_COMMIT: "9c005f44abe627c11fd2670d62be555905a14034",
         POKER44_MODEL_OPEN_SOURCE: "true",
         POKER44_MODEL_FRAMEWORK: "hybrid-lgb-xgb-et-hgram-v123-r1",
         POKER44_MODEL_TRAINING_DATA_SOURCES: "released_training_benchmark_v113",
         POKER44_MODEL_TRAINING_DATA_STATEMENT:
-          "Reverted to R1-era v123 threshold_logit pipeline trained through 2026-07-06.",
+          "v123 with Jul 12 live arena calibration retune for homogeneous batch bot recall.",
         POKER44_MODEL_PRIVATE_DATA_ATTESTATION:
           "No private data used. Training uses only the public benchmark API corpus.",
         POKER44_MODEL_DATA_ATTESTATION:
